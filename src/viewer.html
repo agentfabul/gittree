@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__GITREE_TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --ink: #15202b; --muted: #5b6875; --faint: #8b97a3;
+  --rule: #d8dee4; --hover: #e9edf1; --select: #dfe9f5; --station: #ffffff; --interchange: #15202b;
+  --ok: #13824a; --warn: #b26a00; --bad: #c0362f;
+  --sans: "Overpass", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "Overpass Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --row: 34px; --lane: 18px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f1418; --surface: #161d23; --ink: #e6ebef; --muted: #9aa7b2; --faint: #6d7a86;
+    --rule: #26313a; --hover: #1d262e; --select: #1f3247; --station: #161d23; --interchange: #e6ebef;
+    --ok: #4cc38a; --warn: #f0b44c; --bad: #f2756c; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 15px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid #0b6bcb; outline-offset: 2px; }
+
+header { padding: 28px 32px 0; }
+.title { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+h1 { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; margin: 0; line-height: 1.05; }
+.meta { color: var(--muted); font-size: 14px; }
+.meta b { color: var(--ink); font-weight: 600; }
+.summary { margin: 10px 0 0; color: var(--muted); font-size: 15px; max-width: 75ch; }
+.summary strong { color: var(--ink); font-weight: 600; }
+.summary .warn { color: var(--warn); }
+
+.lines { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; }
+.line { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 4px; border-radius: 15px;
+  border: 1px solid var(--rule); background: var(--surface); cursor: pointer; font-size: 13px; font-weight: 600; }
+.line .bullet { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 800; }
+.line.dim { opacity: 0.45; }
+.line.on { border-color: var(--ink); }
+.line .note { font-weight: 400; color: var(--muted); }
+
+.bar { position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; gap: 12px; align-items: center;
+  padding: 14px 32px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.tabs { display: flex; gap: 2px; background: var(--hover); padding: 3px; border-radius: 8px; }
+.tabs button { border: 0; background: transparent; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); }
+.search { flex: 1; min-width: 200px; max-width: 420px; height: 36px; border: 1px solid var(--rule); background: var(--surface);
+  border-radius: 8px; padding: 0 12px; font: inherit; color: var(--ink); }
+.count { color: var(--muted); font-size: 13px; }
+.toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 0; min-height: 60vh; }
+.view[hidden] { display: none !important; }
+#graphView { position: relative; padding: 8px 0 40px; }
+#graphSvg { position: absolute; left: 24px; top: 8px; overflow: visible; pointer-events: none; }
+.row { height: var(--row); display: flex; align-items: center; gap: 10px; padding-right: 20px; cursor: pointer; border-radius: 0 6px 6px 0; }
+.row:hover { background: var(--hover); }
+.row.sel { background: var(--select); }
+.row.dim { opacity: 0.28; }
+.subj { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.row.merge .subj { color: var(--muted); }
+.who { color: var(--muted); font-size: 13px; width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.when { color: var(--muted); font-size: 13px; width: 78px; text-align: right; white-space: nowrap; }
+.sha { font-family: var(--mono); font-size: 12px; color: var(--faint); width: 62px; }
+.ref { flex: none; font-size: 11.5px; font-weight: 600; height: 20px; line-height: 20px; padding: 0 8px; border-radius: 10px; color: #fff; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.ref.remote { background: transparent !important; border: 1.5px solid; line-height: 17px; }
+.ref.tag { background: var(--hover); color: var(--ink); border-radius: 3px; }
+.ref.head { background: var(--ink); color: var(--bg); }
+mark { background: #ffe58a; color: #15202b; border-radius: 2px; }
+
+aside { border-left: 1px solid var(--rule); background: var(--surface); }
+.panel { position: sticky; top: 65px; max-height: calc(100vh - 65px); overflow: auto; padding: 22px 22px 32px; }
+.panel .empty { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.panel h2 { font-size: 19px; font-weight: 600; margin: 8px 0 14px; line-height: 1.35; }
+.kv { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 7px 12px; font-size: 13.5px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.kv .mono { font-family: var(--mono); font-size: 12.5px; }
+.link { background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--mono); font-size: 12.5px; color: #0b6bcb; text-decoration: underline; text-underline-offset: 2px; }
+@media (prefers-color-scheme: dark) { .link { color: #6cb0f5; } }
+.copy { margin-left: 6px; border: 1px solid var(--rule); background: transparent; border-radius: 5px; font-size: 11px; padding: 1px 6px; cursor: pointer; color: var(--muted); }
+.panel h3 { font-size: 14px; font-weight: 600; margin: 22px 0 8px; }
+.files { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.files li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--rule); }
+.files .p { font-family: var(--mono); overflow-wrap: anywhere; }
+.plus { color: var(--ok); } .minus { color: var(--bad); }
+.branchline { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+
+.page { padding: 24px 32px 48px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-weight: 600; color: var(--muted); font-size: 13px; padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+td { padding: 9px 10px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--hover); }
+.status { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 10px; border: 1px solid currentColor; }
+.s-base { color: var(--ink); } .s-merged { color: var(--ok); } .s-stale { color: var(--warn); } .s-active { color: #0b6bcb; }
+@media (prefers-color-scheme: dark) { .s-active { color: #6cb0f5; } }
+.ab { font-variant-numeric: tabular-nums; font-size: 13px; }
+.ab .a { color: var(--ok); } .ab .b { color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 40px; }
+.page h2 { font-size: 20px; font-weight: 800; margin: 0 0 4px; }
+.page .sub { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+.hbar { height: 6px; border-radius: 3px; background: #0b6bcb; }
+.tableWrap { overflow-x: auto; }
+#activity { width: 100%; height: 120px; display: block; }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: minmax(0, 1fr); }
+  aside { border-left: 0; border-top: 1px solid var(--rule); }
+  .panel { position: static; max-height: none; }
+  .who, .sha { display: none; }
+  header, .bar, .page { padding-left: 16px; padding-right: 16px; }
+  h1 { font-size: 30px; }
+}
+@media (prefers-reduced-motion: no-preference) { .row { transition: opacity .15s; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">
+    <h1 id="repoName"></h1>
+    <span class="meta" id="repoMeta"></span>
+  </div>
+  <p class="summary" id="summary"></p>
+  <div class="lines" id="lines" role="group" aria-label="Branches"></div>
+</header>
+
+<div class="bar">
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-view="graphView">Graph</button>
+    <button role="tab" aria-selected="false" data-view="branchView">Branches</button>
+    <button role="tab" aria-selected="false" data-view="insightView">Insights</button>
+  </div>
+  <input class="search" id="search" type="search" placeholder="Search messages, authors, hashes" aria-label="Search commits">
+  <span class="count" id="count"></span>
+</div>
+
+<main>
+  <div>
+    <section class="view" id="graphView" aria-label="Commit graph">
+      <svg id="graphSvg" aria-hidden="true"></svg>
+      <div id="rows"></div>
+    </section>
+    <section class="view page" id="branchView" hidden>
+      <h2>Branches</h2>
+      <p class="sub" id="branchSub"></p>
+      <div class="tableWrap"><table id="branchTable"></table></div>
+    </section>
+    <section class="view page" id="insightView" hidden>
+      <h2>Activity</h2>
+      <p class="sub">Commits per week across all branches.</p>
+      <svg id="activity" preserveAspectRatio="none"></svg>
+      <div class="grid2" style="margin-top:36px">
+        <div>
+          <h2>Hotspots</h2>
+          <p class="sub">Files that change most. Amber bars mark files touched on three or more branches, the likeliest merge conflicts.</p>
+          <div class="tableWrap"><table id="hotTable"></table></div>
+        </div>
+        <div>
+          <h2>Contributors</h2>
+          <p class="sub">Commits by author in the loaded history.</p>
+          <div class="tableWrap"><table id="peopleTable"></table></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <aside><div class="panel" id="panel" aria-live="polite"><p class="empty">Select a commit to see who made it, what changed, and how it connects to other commits. Use <b>j</b> and <b>k</b> to move between commits.</p></div></aside>
+</main>
+
+<script type="application/json" id="gitree-data">__GITREE_DATA__</script>
+<script>
+(() => {
+  const M = JSON.parse(document.getElementById('gitree-data').textContent);
+  const C = M.commits;
+  const byHash = new Map(C.map((c) => [c.hash, c]));
+  const children = new Map();
+  for (const c of C) for (const p of c.parents) (children.get(p) || children.set(p, []).get(p)).push(c.hash);
+
+  const PALETTE = ['#0b6bcb', '#d6332c', '#13924f', '#e59a00', '#7a4fb0', '#00929c', '#e2621b', '#c2387c', '#5b7083', '#8a9a1c', '#2f4fb5', '#a5502a'];
+  const color = new Map();
+  const assign = (name) => { if (!color.has(name)) color.set(name, PALETTE[color.size % PALETTE.length]); return color.get(name); };
+  M.branches.forEach((b) => assign(b.name));
+  C.forEach((c) => assign(c.branch));
+
+  const ROW = 34, LANE = M.graph.maxLanes > 14 ? 13 : 18, PAD = 12;
+  const gx = (lane) => PAD + lane * LANE;
+  const gy = (row) => row * ROW + ROW / 2;
+  const graphW = PAD * 2 + Math.max(1, M.graph.maxLanes) * LANE;
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const fmtDate = (iso) => new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const rel = (iso) => {
+    const s = (Date.now() - new Date(iso)) / 1000;
+    if (s < 3600) return Math.max(1, Math.round(s / 60)) + 'm ago';
+    if (s < 86400) return Math.round(s / 3600) + 'h ago';
+    if (s < 86400 * 45) return Math.round(s / 86400) + 'd ago';
+    if (s < 86400 * 365) return Math.round(s / 86400 / 30) + 'mo ago';
+    return (s / 86400 / 365).toFixed(1) + 'y ago';
+  };
+  const initials = (name) => name.replace(/^origin\//, '').split(/[\/\-_ ]+/).filter(Boolean).slice(-1)[0]?.[0]?.toUpperCase() || '·';
+
+  // Header
+  const S = M.stats;
+  document.getElementById('repoName').textContent = M.repo.name;
+  document.getElementById('repoMeta').innerHTML = `base <b>${esc(M.repo.base)}</b>, checked out <b>${esc(M.repo.head || 'detached')}</b>, generated ${esc(fmtDate(M.generatedAt))}`;
+  document.getElementById('summary').innerHTML =
+    `<strong>${S.commits}</strong> commits${M.truncated ? ' (newest only)' : ''} across <strong>${S.branches}</strong> branches, ` +
+    `<strong>${S.merges}</strong> merges and <strong>${S.contributors}</strong> contributors. ` +
+    (S.unmerged ? `<strong>${S.unmerged}</strong> branch${S.unmerged === 1 ? ' is' : 'es are'} not merged into ${esc(M.repo.base)}` : `Everything is merged into ${esc(M.repo.base)}`) +
+    (S.stale ? `, and <span class="warn"><strong>${S.stale}</strong> ${S.stale === 1 ? 'has' : 'have'} gone stale</span>.` : '.');
+
+  // Branch legend
+  let focus = null;
+  const lines = document.getElementById('lines');
+  for (const b of M.branches) {
+    const el = document.createElement('button');
+    el.className = 'line';
+    el.dataset.branch = b.name;
+    el.setAttribute('aria-pressed', 'false');
+    const note = b.isBase ? 'base' : b.stale ? 'stale' : b.merged ? 'merged' : (b.ahead != null ? `+${b.ahead}` : '');
+    el.innerHTML = `<span class="bullet" style="background:${color.get(b.name)}">${esc(initials(b.name))}</span>${esc(b.name)}${note ? ` <span class="note">${note}</span>` : ''}`;
+    el.onclick = () => setFocus(focus === b.name ? null : b.name);
+    lines.appendChild(el);
+  }
+
+  // Graph
+  const svg = document.getElementById('graphSvg');
+  const totalH = C.length * ROW;
+  svg.setAttribute('width', graphW);
+  svg.setAttribute('height', totalH);
+  svg.setAttribute('viewBox', `0 0 ${graphW} ${totalH}`);
+  const curve = (x0, y0, x1, y1) => { const m = (y0 + y1) / 2; return `C${x0} ${m} ${x1} ${m} ${x1} ${y1}`; };
+  let parts = [];
+  for (const e of M.graph.edges) {
+    const ch = byHash.get(e.from), pa = byHash.get(e.to);
+    const cx = gx(ch.lane), cy = gy(ch.row), lx = gx(e.lane), px = gx(pa.lane), py = gy(pa.row);
+    const y1 = e.lane !== ch.lane ? cy + ROW : cy;
+    const y2 = e.lane !== pa.lane ? py - ROW : py;
+    let d = `M${cx} ${cy}`;
+    if (y2 < y1) d += curve(cx, cy, px, py);
+    else {
+      if (e.lane !== ch.lane) d += curve(cx, cy, lx, y1);
+      d += `L${lx} ${y2}`;
+      if (e.lane !== pa.lane) d += curve(lx, y2, px, py);
+    }
+    const col = color.get(e.kind === 'merge' ? pa.branch : ch.branch);
+    parts.push(`<path class="g" data-b="${esc(e.kind === 'merge' ? pa.branch : ch.branch)}" data-b2="${esc(ch.branch)}" d="${d}" fill="none" stroke="${col}" stroke-width="3.5" stroke-linecap="round"/>`);
+  }
+  for (const c of C) {
+    if (!c.truncated) continue;
+    const x = gx(c.lane), y = gy(c.row);
+    parts.push(`<path class="g" data-b="${esc(c.branch)}" d="M${x} ${y}L${x} ${y + ROW * 0.8}" stroke="${color.get(c.branch)}" stroke-width="3.5" stroke-dasharray="2 5" stroke-linecap="round"/>`);
+  }
+  for (const c of C) {
+    const x = gx(c.lane), y = gy(c.row), col = color.get(c.branch);
+    if (c.parents.length > 1) {
+      parts.push(`<g class="g" data-b="${esc(c.branch)}"><circle cx="${x}" cy="${y}" r="7" fill="var(--station)" stroke="var(--interchange)" stroke-width="3"/></g>`);
+    } else {
+      const tip = c.refs.branches.length || c.refs.remotes.length;
+      parts.push(`<g class="g" data-b="${esc(c.branch)}"><circle cx="${x}" cy="${y}" r="${tip ? 6.5 : 5}" fill="${tip ? col : 'var(--station)'}" stroke="${col}" stroke-width="3"/></g>`);
+    }
+  }
+  svg.innerHTML = parts.join('');
+
+  const rowsEl = document.getElementById('rows');
+  const refHtml = (c) => {
+    let h = '';
+    if (c.refs.head && !c.refs.branches.length) h += `<span class="ref head">HEAD</span>`;
+    for (const b of c.refs.branches) h += `<span class="ref${c.refs.head && b === M.repo.head ? ' head' : ''}" style="background:${color.get(b) || '#5b7083'}" title="${esc(b)}">${esc(b)}</span>`;
+    for (const r of c.refs.remotes) h += `<span class="ref remote" style="border-color:${color.get(r) || '#5b7083'};color:${color.get(r) || 'var(--muted)'}" title="${esc(r)}">${esc(r)}</span>`;
+    for (const t of c.refs.tags) h += `<span class="ref tag" title="tag ${esc(t)}">${esc(t)}</span>`;
+    return h;
+  };
+  rowsEl.innerHTML = C.map((c, i) =>
+    `<div class="row${c.parents.length > 1 ? ' merge' : ''}" data-i="${i}" data-b="${esc(c.branch)}" style="padding-left:${graphW + 32}px" tabindex="-1">` +
+    `${refHtml(c)}<span class="subj">${esc(c.subject)}</span><span class="who">${esc(c.author)}</span>` +
+    `<span class="when" title="${esc(fmtDate(c.date))}">${rel(c.date)}</span><span class="sha">${c.short}</span></div>`).join('');
+  const rowEls = [...rowsEl.children];
+
+  // Selection + detail panel
+  let sel = -1;
+  const panel = document.getElementById('panel');
+  const linkFor = (h) => byHash.has(h) ? `<button class="link" data-goto="${h}">${h.slice(0, 7)}</button>` : `<span class="mono">${h.slice(0, 7)}</span> <span style="color:var(--faint)">(not loaded)</span>`;
+  function select(i, scroll = true) {
+    if (i < 0 || i >= C.length) return;
+    if (sel >= 0) rowEls[sel].classList.remove('sel');
+    sel = i;
+    const r = rowEls[i];
+    r.classList.add('sel');
+    if (scroll) r.scrollIntoView({ block: 'nearest' });
+    const c = C[i];
+    history.replaceState(null, '', '#' + c.short);
+    const kids = children.get(c.hash) || [];
+    const files = c.files.map((f) => `<li><span class="p">${esc(f.path)}</span><span>${f.binary ? '<span style="color:var(--faint)">binary</span>' : `<span class="plus">+${f.add}</span> <span class="minus">−${f.del}</span>`}</span></li>`).join('');
+    const refs = refHtml(c);
+    panel.innerHTML =
+      `<span class="branchline"><span class="dot" style="background:${color.get(c.branch)}"></span><span style="font-size:13px;color:var(--muted)">${esc(c.branch)}${c.deletedBranch ? ' (branch deleted)' : ''}</span></span>` +
+      `<h2>${esc(c.subject)}</h2>` +
+      (refs ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px">${refs}</div>` : '') +
+      `<dl class="kv">` +
+      `<dt>Commit</dt><dd><span class="mono">${c.hash.slice(0, 12)}</span><button class="copy" data-copy="${c.hash}">Copy</button></dd>` +
+      `<dt>Author</dt><dd>${esc(c.author)}<br><span style="color:var(--muted)">${esc(c.email)}</span></dd>` +
+      `<dt>Date</dt><dd>${esc(fmtDate(c.date))}</dd>` +
+      `<dt>${c.parents.length > 1 ? 'Merges' : 'Parent'}</dt><dd>${c.parents.length ? c.parents.map(linkFor).join(', ') : 'none, this is the first commit'}</dd>` +
+      `<dt>Children</dt><dd>${kids.length ? kids.map(linkFor).join(', ') : 'none in view'}</dd>` +
+      (c.parents.length > 1 ? '' : `<dt>Changes</dt><dd>${c.fileCount} file${c.fileCount === 1 ? '' : 's'}, <span class="plus">+${c.additions}</span> <span class="minus">−${c.deletions}</span></dd>`) +
+      `</dl>` +
+      (c.parents.length > 1 ? `<p style="font-size:13px;color:var(--muted);margin:14px 0 0">Merge commits show no file list here. Open the merged parent to see what came in.</p>` : '') +
+      (files ? `<h3>Files</h3><ul class="files">${files}</ul>${c.fileCount > c.files.length ? `<p style="font-size:12.5px;color:var(--muted)">and ${c.fileCount - c.files.length} more</p>` : ''}` : '') +
+      `<h3>Inspect locally</h3><p style="font-family:var(--mono);font-size:12px;background:var(--bg);padding:8px 10px;border-radius:6px;margin:0;overflow-wrap:anywhere">git show ${c.short}</p>`;
+  }
+  panel.addEventListener('click', (e) => {
+    const g = e.target.closest('[data-goto]');
+    if (g) { showView('graphView'); select(C.indexOf(byHash.get(g.dataset.goto))); return; }
+    const cp = e.target.closest('[data-copy]');
+    if (cp) { navigator.clipboard?.writeText(cp.dataset.copy).then(() => { cp.textContent = 'Copied'; setTimeout(() => (cp.textContent = 'Copy'), 1200); }); }
+  });
+  rowsEl.addEventListener('click', (e) => { const r = e.target.closest('.row'); if (r) select(+r.dataset.i, false); });
+
+  // Focus a branch
+  function setFocus(name) {
+    focus = name;
+    for (const el of lines.children) {
+      const on = el.dataset.branch === name;
+      el.classList.toggle('on', on);
+      el.classList.toggle('dim', !!name && !on);
+      el.setAttribute('aria-pressed', String(on));
+    }
+    applyDim();
+    if (name) {
+      const b = M.branches.find((x) => x.name === name);
+      const i = b ? C.findIndex((c) => c.hash === b.tip) : -1;
+      if (i >= 0) select(i);
+    }
+  }
+
+  // Search
+  const search = document.getElementById('search');
+  const count = document.getElementById('count');
+  let matches = [], mi = -1;
+  function applyDim() {
+    const q = search.value.trim().toLowerCase();
+    matches = [];
+    C.forEach((c, i) => {
+      const hitQ = !q || c.subject.toLowerCase().includes(q) || c.author.toLowerCase().includes(q) || c.hash.startsWith(q) ||
+        [...c.refs.branches, ...c.refs.remotes, ...c.refs.tags].some((r) => r.toLowerCase().includes(q));
+      const hitB = !focus || c.branch === focus;
+      if (q && hitQ && hitB) matches.push(i);
+      rowEls[i].classList.toggle('dim', !(hitQ && hitB));
+      const subj = rowEls[i].querySelector('.subj');
+      if (q && hitQ && c.subject.toLowerCase().includes(q)) {
+        const k = c.subject.toLowerCase().indexOf(q);
+        subj.innerHTML = esc(c.subject.slice(0, k)) + '<mark>' + esc(c.subject.slice(k, k + q.length)) + '</mark>' + esc(c.subject.slice(k + q.length));
+      } else subj.textContent = c.subject;
+    });
+    svg.querySelectorAll('.g').forEach((g) => {
+      const on = !focus || g.dataset.b === focus || g.dataset.b2 === focus;
+      g.style.opacity = on ? (q ? 0.6 : 1) : 0.15;
+    });
+    count.textContent = q ? `${matches.length} match${matches.length === 1 ? '' : 'es'}${matches.length ? ', Enter for next' : ''}` : '';
+    mi = -1;
+  }
+  search.addEventListener('input', applyDim);
+  search.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && matches.length) { mi = (mi + 1) % matches.length; showView('graphView'); select(matches[mi]); }
+    if (e.key === 'Escape') { search.value = ''; applyDim(); search.blur(); }
+  });
+
+  // Keyboard navigation
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); select(Math.min(C.length - 1, sel + 1)); }
+    else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); select(Math.max(0, sel - 1)); }
+    else if (e.key === '/') { e.preventDefault(); search.focus(); }
+    else if (e.key === 'Escape') setFocus(null);
+  });
+
+  // Tabs
+  const tabs = document.querySelectorAll('.tabs button');
+  function showView(id) {
+    tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === id)));
+    document.querySelectorAll('.view').forEach((v) => (v.hidden = v.id !== id));
+  }
+  tabs.forEach((t) => (t.onclick = () => showView(t.dataset.view)));
+
+  // Branches table
+  document.getElementById('branchSub').textContent = `Compared with ${M.repo.base}. Ahead means commits not yet in ${M.repo.base}; behind means commits it is missing from ${M.repo.base}. Stale means no commits for ${M.options.staleDays}+ days and not merged.`;
+  const bt = document.getElementById('branchTable');
+  bt.innerHTML = `<thead><tr><th>Branch</th><th>Status</th><th class="num">Ahead</th><th class="num">Behind</th><th>Last commit</th><th>Author</th></tr></thead><tbody>` +
+    M.branches.map((b) => `<tr class="click" data-branch="${esc(b.name)}"><td><span class="branchline"><span class="dot" style="background:${color.get(b.name)}"></span>${esc(b.name)}</span></td>` +
+      `<td><span class="status s-${b.status}">${b.status}</span></td>` +
+      `<td class="num ab"><span class="a">${b.ahead ?? '?'}</span></td><td class="num ab"><span class="b">${b.behind ?? '?'}</span></td>` +
+      `<td title="${esc(fmtDate(b.lastCommit))}">${rel(b.lastCommit)} <span style="color:var(--muted)">${esc(b.tipSubject.slice(0, 48))}</span></td><td>${esc(b.lastAuthor)}</td></tr>`).join('') + '</tbody>';
+  bt.addEventListener('click', (e) => { const tr = e.target.closest('tr[data-branch]'); if (tr) { showView('graphView'); setFocus(tr.dataset.branch); } });
+
+  // Insights
+  const maxC = Math.max(1, ...M.hotspots.map((f) => f.commits));
+  document.getElementById('hotTable').innerHTML = M.hotspots.length ? `<thead><tr><th>File</th><th class="num">Commits</th><th class="num">Branches</th></tr></thead><tbody>` +
+    M.hotspots.slice(0, 15).map((f) => `<tr><td><div style="font-family:var(--mono);font-size:12.5px;overflow-wrap:anywhere">${esc(f.path)}</div><div class="hbar" style="width:${Math.round(f.commits / maxC * 100)}%;margin-top:5px;${f.branches > 2 ? 'background:var(--warn)' : ''}"></div></td><td class="num">${f.commits}</td><td class="num">${f.branches}</td></tr>`).join('') + '</tbody>'
+    : '<tbody><tr><td>No file changes in the loaded history.</td></tr></tbody>';
+  document.getElementById('peopleTable').innerHTML = `<thead><tr><th>Name</th><th class="num">Commits</th><th class="num">Lines</th><th>Last active</th></tr></thead><tbody>` +
+    M.contributors.slice(0, 15).map((p) => `<tr class="click" data-author="${esc(p.name)}"><td>${esc(p.name)}</td><td class="num">${p.commits}</td><td class="num"><span class="plus">+${p.add}</span> <span class="minus">−${p.del}</span></td><td>${rel(p.last)}</td></tr>`).join('') + '</tbody>';
+  document.getElementById('peopleTable').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-author]'); if (tr) { search.value = tr.dataset.author; showView('graphView'); applyDim(); } });
+
+  const weeks = new Map();
+  const wk = (iso) => { const d = new Date(iso); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - d.getDay()); return d.getTime(); };
+  for (const c of C) weeks.set(wk(c.date), (weeks.get(wk(c.date)) || 0) + 1);
+  const first = wk(S.firstCommit), last = wk(S.lastCommit), W = 7 * 86400000;
+  const series = [];
+  for (let t = first; t <= last; t += W) series.push([t, weeks.get(t) || 0]);
+  const act = document.getElementById('activity');
+  const maxW = Math.max(1, ...series.map((s) => s[1]));
+  const bw = 1000 / Math.max(1, series.length);
+  act.setAttribute('viewBox', '0 0 1000 120');
+  act.innerHTML = series.map(([t, n], i) => `<rect x="${i * bw + bw * 0.12}" y="${118 - n / maxW * 112}" width="${Math.max(1, bw * 0.76)}" height="${Math.max(n ? 2 : 0, n / maxW * 112)}" fill="#0b6bcb"><title>Week of ${new Date(t).toLocaleDateString()}: ${n} commit${n === 1 ? '' : 's'}</title></rect>`).join('') +
+    `<line x1="0" x2="1000" y1="119" y2="119" stroke="var(--rule)"/>`;
+
+  // Deep link: #<short hash>
+  const h = location.hash.slice(1);
+  const start = h ? C.findIndex((c) => c.hash.startsWith(h)) : -1;
+  if (start >= 0) select(start);
+})();
+</script>
+</body>
+</html>

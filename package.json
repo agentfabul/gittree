@@ -1,0 +1,15 @@
+{
+  "name": "gitree",
+  "version": "0.1.0",
+  "description": "Turn a git repo's branch history into an interactive HTML map, a JSON graph, and a branch health report.",
+  "type": "module",
+  "bin": { "gitree": "bin/gitree.js" },
+  "files": ["bin", "src"],
+  "scripts": {
+    "demo": "node scripts/make-demo-repo.js && node bin/gitree.js demo-repo --open",
+    "self": "node bin/gitree.js . --open"
+  },
+  "engines": { "node": ">=18" },
+  "keywords": ["git", "graph", "branches", "visualization", "cli"],
+  "license": "MIT"
+}
